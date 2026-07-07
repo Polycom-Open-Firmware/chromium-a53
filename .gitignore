@@ -1,0 +1,9 @@
+op-app-chromium_*
+*.deb
+*.buildinfo
+*.changes
+op-app-chromium/debian/op-app-chromium/
+op-app-chromium/debian/.debhelper/
+op-app-chromium/debian/files
+op-app-chromium/debian/*.substvars
+op-app-chromium/debian/debhelper-build-stamp

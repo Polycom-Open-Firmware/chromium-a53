@@ -1,0 +1,55 @@
+# CI SKETCH — chromium-a53 cross build.
+#
+# Deliberately manual-dispatch only: this is a multi-hour build that
+# needs a self-hosted runner with ~32 GB RAM and ~150 GB scratch.
+# GitHub-hosted runners would take 10h+ and run out of disk.
+#
+# NOT WIRED YET:
+#  - no self-hosted runner is registered for the org
+#  - no publish step (apt repo publishing is not live; when it is, this
+#    job should upload debs as an artifact and repository_dispatch the
+#    `apt` repo, matching the `packages` repo convention — the apt repo
+#    is the single writer to R2)
+#  - no secrets are referenced on purpose
+
+name: Build chromium (arm64 cross)
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    # Registered runner must carry these labels; big-disk implies the
+    # persistent /srv/chromium-a53 scratch below.
+    runs-on: [self-hosted, linux, x64, big-disk]
+    timeout-minutes: 720
+    env:
+      # Persistent across runs: the bookworm chroot (incl. ~10 GB of
+      # build-deps) and ccache-less object dirs are expensive to recreate.
+      CHROOT: /srv/chromium-a53/chroot
+      OUT_DIR: ${{ github.workspace }}/out
+      JOBS: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up / refresh build chroot (idempotent)
+        run: sudo --preserve-env=CHROOT scripts/setup-chroot.sh "$CHROOT"
+
+      - name: Fetch pinned Debian source
+        run: scripts/fetch-source.sh "$CHROOT"
+
+      - name: Cross-build chromium for arm64
+        run: sudo --preserve-env=OUT_DIR,JOBS scripts/build.sh "$CHROOT"
+
+      - name: Build op-app-chromium (arch:all wrapper)
+        run: |
+          sudo apt-get install -y --no-install-recommends debhelper devscripts
+          (cd op-app-chromium && dpkg-buildpackage -us -uc -b)
+          mv op-app-chromium_*.deb "$OUT_DIR"/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chromium-a53-debs
+          path: out/*.deb
+
+      # TODO(publish): repository_dispatch to Polycom-Open-Firmware/apt
+      # with event_type=publish-packages once R2 credentials are live.

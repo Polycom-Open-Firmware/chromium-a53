@@ -1,0 +1,27 @@
+--- a/debian/rules
++++ b/debian/rules
+@@ -87,6 +87,24 @@
+ endif
+ ifeq (arm64,$(DEB_HOST_ARCH))
+ defines+=host_cpu=\"arm64\" use_v4l2_codec=true use_vaapi=false
++
++# --- Polycom chromium-a53 (TC8: NXP i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) -------
++# Tune codegen for the A53's in-order pipeline. i.MX8M-family A53s ship
++# WITHOUT the ARMv8 crypto extensions; LLVM's cortex-a53 model enables
++# armv8-a+crc+fp+neon only (no aes/sha2), so -mcpu=cortex-a53 is safe on
++# this silicon (/proc/cpuinfo: fp asimd evtstrm crc32 cpuid).
++export CFLAGS+=-mcpu=cortex-a53
++export CXXFLAGS+=-mcpu=cortex-a53
++# Pin the accel/memory behavior the TC8 kiosk relies on. Both match the
++# M150 upstream defaults; pinned so a future version bump cannot
++# silently regress them:
++#  - enable_hevc_parser_and_hw_decoder: builds the V4L2 stateless H265
++#    decoder delegate (Hantro G2)  [media/media_options.gni]
++#  - v8_enable_pointer_compression: 32-bit tagged pointers; large heap
++#    savings on a 2 GiB RAM device  [v8/BUILD.gn]
++defines+=enable_hevc_parser_and_hw_decoder=true \
++         v8_enable_pointer_compression=true
++# -----------------------------------------------------------------------------
+ endif
+ ifeq (armhf,$(DEB_HOST_ARCH))
+ defines+=host_cpu=\"arm\" use_v4l2_codec=true use_vaapi=false arm_use_neon=true
