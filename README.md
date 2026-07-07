@@ -171,10 +171,16 @@ ozone/GL path").
   `nice -n 10` with **ninja `-j10`** (leave 2 cores for the box).
 - Disk: chroot + build-deps ≈ 10 GB, source tree ≈ 7 GB unpacked,
   out/Release ≈ 40–80 GB. Keep ≥ 150 GB free.
-- Wall clock: first build measured on this box — see PROFILES-PLAN
-  status updates; expect **4–10 h** (~90k ninja targets; qemu-emulated
-  one-shot tools add minutes, not hours). Link phase peaks ≈ 10 GB RSS
-  per lld link; GN's `concurrent_links` auto-throttles by RAM.
+- Wall clock: the arch build is **80,320 ninja targets**; first build
+  (2026-07-07, this box) opened at ≈ 8 targets/s in the early phase →
+  expect **3–6 h** to the debs (compile skews fast early, the final lld
+  links and dh_install skew slow; qemu-emulated one-shot tools add
+  minutes, not hours). Link phase peaks ≈ 10 GB RSS per lld link; GN's
+  `concurrent_links` auto-throttles by RAM.
+- Failed/interrupted builds **resume**: every stage of
+  `inner-build.sh` is guarded (source unpack, build-deps, patch, dch)
+  and ninja is incremental — re-running `build.sh` continues where it
+  stopped.
 - Rebase cost: bump `VERSION` + three sha256 pins in
   `fetch-source.sh`, re-run. The chroot and its build-deps persist.
 
