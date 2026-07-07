@@ -1,58 +1,74 @@
 --- a/debian/rules
 +++ b/debian/rules
-@@ -87,6 +87,29 @@
+@@ -87,6 +87,28 @@
  endif
  ifeq (arm64,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm64\" use_v4l2_codec=true use_vaapi=false
 +
-+# --- Polycom chromium-a53 recipe v3 (TC8: i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) --
-+# Tune codegen for the A53's in-order pipeline. i.MX8M-family A53s ship
-+# WITHOUT the ARMv8 crypto extensions; LLVM's cortex-a53 model enables
-+# armv8-a+crc+fp+neon only (no aes/sha2), so -mcpu=cortex-a53 is safe on
-+# this silicon (/proc/cpuinfo: fp asimd evtstrm crc32 cpuid).
-+export CFLAGS+=-mcpu=cortex-a53
-+export CXXFLAGS+=-mcpu=cortex-a53
-+# Pin the accel/memory behavior the TC8 kiosk relies on. Both match the
-+# M150 upstream defaults; pinned so a future version bump cannot
-+# silently regress them:
-+#  - enable_hevc_parser_and_hw_decoder: builds the V4L2 stateless H265
-+#    decoder delegate (Hantro G2)  [media/media_options.gni]
-+#  - v8_enable_pointer_compression: 32-bit tagged pointers; large heap
-+#    savings on a 2 GiB RAM device  [v8/BUILD.gn]
++# --- Polycom chromium-a53 recipe v4 (TC8: i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) --
++# A53 codegen tuning goes in via a build/config/compiler patch (scoped to
++# current_cpu=="arm64"), NOT the global CXXFLAGS env: the cross build
++# reuses the unbundle toolchain to compile x86_64 rust host build-tools,
++# and clang rejects -mcpu=cortex-a53 for an x86 target. See
++# patches/op-a53-debian.patch's build/config/compiler/BUILD.gn hunk.
++# i.MX8MM A53s lack the ARMv8 crypto extensions; LLVM's cortex-a53 model
++# is armv8-a+crc+fp+neon only (no aes/sha2), matching the silicon.
++#
++# Pin accel/memory behavior the TC8 kiosk relies on (both match M150
++# upstream defaults; pinned so a version bump can't silently regress):
++#  - enable_hevc_parser_and_hw_decoder: V4L2 stateless H265 delegate
++#    (Hantro G2)  [media/media_options.gni]
++#  - v8_enable_pointer_compression: 32-bit tagged pointers on 2 GiB RAM
++#    [v8/BUILD.gn]
 +defines+=enable_hevc_parser_and_hw_decoder=true \
 +         v8_enable_pointer_compression=true
-+# Cross build: the esbuild JS lib resolves its backend binary by the
-+# RUNNING node's platform (build arch) and would look for a missing
-+# @esbuild/linux-x64; point it at /usr/bin/esbuild instead (which
-+# setup-chroot.sh diverts to a version-matched build-arch binary).
++# Cross build: esbuild JS lib resolves its backend by the RUNNING node
++# (build arch); point it at the diverted native /usr/bin/esbuild.
 +export ESBUILD_BINARY_PATH=/usr/bin/esbuild
 +# -----------------------------------------------------------------------------
  endif
  ifeq (armhf,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm\" use_v4l2_codec=true use_vaapi=false arm_use_neon=true
-@@ -194,7 +217,11 @@
+@@ -194,7 +216,10 @@
  	# are new enough to build chromium but old enough to not be linked against
  	# Trixie's libc6 2.38
  	mkdir -p debian/bindgen/root
 -	ar --output debian/bindgen/root vx debian/bindgen/bindgen_0.66.1-3_$(DEB_HOST_ARCH).deb
 +	# op-a53: bindgen RUNS at build time (control says bindgen:native);
-+	# extract the BUILD-arch snapshot deb, not the host-arch one — the
-+	# host-arch binary cannot dlopen the build-arch libclang.
-+	# (DEB_BUILD_ARCH == DEB_HOST_ARCH in native builds.)
++	# extract the BUILD-arch snapshot deb (host-arch one cannot dlopen
++	# the build-arch libclang). DEB_BUILD_ARCH==DEB_HOST_ARCH natively.
 +	ar --output debian/bindgen/root vx debian/bindgen/bindgen_0.66.1-3_$(DEB_BUILD_ARCH).deb
  	tar -C debian/bindgen/root -Jxvf debian/bindgen/root/data.tar.xz
  
  # unused for sid
-@@ -214,8 +241,10 @@
+@@ -214,8 +239,10 @@
  	# use system rollup
  	cp -ra /usr/share/nodejs/rollup third_party/node/node_modules/
  	- test -L third_party/devtools-frontend/src/node_modules/rollup3 || ln -s /usr/share/nodejs/rollup third_party/devtools-frontend/src/node_modules/rollup3
 -	# use debian's esbuild
 -	cp -ra /usr/lib/$(DEB_BUILD_MULTIARCH)/nodejs/esbuild third_party/devtools-frontend/src/node_modules/
 +	# use debian's esbuild (op-a53: HOST multiarch — the esbuild
-+	# build-dep resolves to the host arch under -Pcross; equal to
-+	# DEB_BUILD_MULTIARCH in native builds)
++	# build-dep resolves to host arch under -Pcross; == build multiarch
++	# natively)
 +	cp -ra /usr/lib/$(DEB_HOST_MULTIARCH)/nodejs/esbuild third_party/devtools-frontend/src/node_modules/
  	#cp debian/esbuild/root/usr/bin/esbuild third_party/devtools-frontend/src/third_party/esbuild/esbuild
  	mkdir -p third_party/devtools-frontend/src/third_party/esbuild
  	cp /usr/bin/esbuild third_party/devtools-frontend/src/third_party/esbuild/
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -1035,6 +1035,15 @@
+   # as NEON is a mandatory part of ARMv8 anyway.
+   if (current_cpu == "arm64") {
+     defines += [ "__ARM_NEON__=1" ]
++
++    # Polycom chromium-a53: tune codegen for the TC8's Cortex-A53. Scoped
++    # to current_cpu=="arm64" so it never reaches the x86_64 rust host
++    # build-tools toolchain (which the Debian cross build compiles with
++    # this same config). LLVM's cortex-a53 model is armv8-a+crc+fp+neon,
++    # no crypto ext -- matches the i.MX8MM silicon.
++    if (is_clang && !is_win) {
++      cflags += [ "-mcpu=cortex-a53" ]
++    }
+   }
+ }
+ 
