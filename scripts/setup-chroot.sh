@@ -82,9 +82,15 @@ in_chroot apt-get install -y cross-exe-wrapper:arm64
 # bookworm's qemu-user 7.2 only ships qemu-<qemuarch> (qemu-aarch64).
 ln -sf /usr/bin/qemu-aarch64 "$CHROOT/usr/local/bin/qemu-arm64"
 
-# smoke test: must print the ld.so usage banner via emulation
-in_chroot aarch64-linux-gnu-cross-exe-wrapper \
-    /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 2>&1 | head -1
+# smoke test: the wrapper must be able to run an arm64 binary (ld.so
+# complains "missing program name" — that complaint IS the success
+# signal; ld.so's nonzero exit must not trip pipefail here).
+if in_chroot sh -c 'aarch64-linux-gnu-cross-exe-wrapper /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 2>&1 | grep -q "missing program name"'; then
+    echo "cross-exe-wrapper smoke test OK"
+else
+    echo "cross-exe-wrapper smoke test FAILED (qemu path broken)" >&2
+    exit 1
+fi
 
 mkdir -p "$CHROOT/build"
 echo "chroot ready: $CHROOT"
