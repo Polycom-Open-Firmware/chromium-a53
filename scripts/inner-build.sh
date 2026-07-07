@@ -28,8 +28,10 @@ if ! dpkg -s chromium-cross-build-deps >/dev/null 2>&1; then
         debian/control
 fi
 
-# Recipe patch (A53 tuning + pinned accel args); idempotent.
-if ! grep -q 'cortex-a53' debian/rules; then
+# Recipe patch (A53 tuning + pinned accel args + cross esbuild fix);
+# marker-guarded so a tree patched by an OLDER recipe fails loudly here
+# (wipe the tree and re-extract rather than mixing patch generations).
+if ! grep -q 'chromium-a53 recipe v2' debian/rules; then
     patch -p1 < /build/patches/op-a53-debian.patch
 fi
 

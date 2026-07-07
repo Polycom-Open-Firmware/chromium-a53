@@ -82,6 +82,30 @@ in_chroot apt-get install -y cross-exe-wrapper:arm64
 # bookworm's qemu-user 7.2 only ships qemu-<qemuarch> (qemu-aarch64).
 ln -sf /usr/bin/qemu-aarch64 "$CHROOT/usr/local/bin/qemu-arm64"
 
+# 5. esbuild divert --------------------------------------------------------
+# The `esbuild` build-dep is unqualified in debian/control, so -Pcross
+# resolves it to the HOST arch (arm64) — but esbuild must RUN during the
+# build (devtools bundling), and unlike protoc/mksnapshot it is not
+# invoked through HOST_EXEC_WRAPPER. Divert /usr/bin/esbuild and install
+# the version-matched amd64 binary so it executes natively. The recipe
+# patch pins ESBUILD_BINARY_PATH=/usr/bin/esbuild to match.
+ESB_DEB="esbuild_0.17.0-1+b2_amd64.deb"
+ESB_URL="https://deb.debian.org/debian/pool/main/g/golang-github-evanw-esbuild/$ESB_DEB"
+ESB_SHA256="8e268f457e822553fd8de26712c459682c9f21c3b529fdc181515647a128b3a8"
+if ! in_chroot dpkg-divert --list /usr/bin/esbuild | grep -q esbuild; then
+    in_chroot dpkg-divert --local --rename --divert /usr/bin/esbuild.distrib \
+        --add /usr/bin/esbuild
+fi
+if [ ! -x "$CHROOT/usr/bin/esbuild" ] || \
+   ! file -b "$CHROOT/usr/bin/esbuild" | grep -q x86-64; then
+    curl -fsSL "$ESB_URL" -o "$CHROOT/opt/local-repo/$ESB_DEB"
+    echo "$ESB_SHA256  $CHROOT/opt/local-repo/$ESB_DEB" | sha256sum -c -
+    staging=$(mktemp -d)
+    dpkg-deb -x "$CHROOT/opt/local-repo/$ESB_DEB" "$staging"
+    install -m 0755 "$staging/usr/bin/esbuild" "$CHROOT/usr/bin/esbuild"
+    rm -rf "$staging"
+fi
+
 # smoke test: the wrapper must be able to run an arm64 binary (ld.so
 # complains "missing program name" — that complaint IS the success
 # signal; ld.so's nonzero exit must not trip pipefail here).

@@ -32,6 +32,14 @@ CHROMIUM_FLAGS="$CHROMIUM_FLAGS --ignore-gpu-blocklist"
 # repeated flags are harmless).
 CHROMIUM_FLAGS="$CHROMIUM_FLAGS --enable-gpu-rasterization"
 
+# KNOWN RISK (bench-verify): the Linux GPU-process sandbox may deny
+# opening /dev/videoN (V4L2 nodes are not in the desktop sandbox broker
+# allowlist the way VAAPI render nodes are). If chrome://media-internals
+# shows the decoder failing to open the device, test with
+#   --disable-gpu-sandbox
+# and if that fixes it, prefer a small broker-allowlist patch in the
+# next recipe rev over shipping the sandbox off.
+
 # GL/ANGLE backend: deliberately left on auto-selection for the first
 # bench evaluation. If chrome://gpu shows SwiftShader (software) on the
 # GC NanoUltra, evaluate in this order and bake the winner here:

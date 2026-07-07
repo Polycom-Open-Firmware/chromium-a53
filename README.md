@@ -99,6 +99,16 @@ Debian's arm64 baseline already provides (see `debian/rules`):
 | `proprietary_codecs=true` + `ffmpeg_branding="Chrome"` | H.264/AAC/… demux + software fallback. |
 | system clang-19 / rustc-web 1.85 / lld / system libs | bookworm toolchain, security-supported. |
 
+One cross-build environment fix rides along: `debian/control`'s
+unqualified `esbuild` build-dep resolves to the *host* arch (arm64)
+under `-Pcross`, but esbuild must *run* during the build and is not
+routed through `HOST_EXEC_WRAPPER`. The recipe patches the rules to take
+the node module from `DEB_HOST_MULTIARCH` (equal to build multiarch in
+native builds, so upstreamable) and pins
+`ESBUILD_BINARY_PATH=/usr/bin/esbuild`, while `setup-chroot.sh`
+dpkg-diverts `/usr/bin/esbuild` to a sha256-pinned, version-matched
+amd64 binary so bundling runs natively.
+
 The recipe patch (`patches/op-a53-debian.patch`) adds, arm64-only:
 
 | delta | rationale |
@@ -166,6 +176,12 @@ ozone/GL path").
 - **ANGLE on ES2-class GPU**: see GL/ANGLE decision above; worst case is
   SwiftShader raster with HW video decode still active (decode is
   independent of raster backend, needs only EGL+dmabuf for zero-copy).
+- **GPU sandbox vs /dev/video***: the desktop-Linux GPU-process sandbox
+  broker allowlists VAAPI render nodes but not necessarily V4L2 decoder
+  nodes; if decode fails with EPERM on the bench, verify with
+  `--disable-gpu-sandbox`, then carry a small sandbox broker allowlist
+  patch (`sandbox/policy/linux/bpf_gpu_policy_linux.cc`) in the next
+  recipe rev rather than shipping with the sandbox off.
 - **2 GiB RAM**: pointer compression is pinned, but a modern Chromium +
   cage on 2 GiB wants a bench pass over `chrome://memory` /
   `memory.pressure`; candidates if tight: `--renderer-process-limit=2`,

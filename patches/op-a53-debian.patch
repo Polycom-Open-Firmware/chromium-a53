@@ -1,11 +1,11 @@
 --- a/debian/rules
 +++ b/debian/rules
-@@ -87,6 +87,24 @@
+@@ -87,6 +87,29 @@
  endif
  ifeq (arm64,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm64\" use_v4l2_codec=true use_vaapi=false
 +
-+# --- Polycom chromium-a53 (TC8: NXP i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) -------
++# --- Polycom chromium-a53 recipe v2 (TC8: i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) --
 +# Tune codegen for the A53's in-order pipeline. i.MX8M-family A53s ship
 +# WITHOUT the ARMv8 crypto extensions; LLVM's cortex-a53 model enables
 +# armv8-a+crc+fp+neon only (no aes/sha2), so -mcpu=cortex-a53 is safe on
@@ -21,7 +21,25 @@
 +#    savings on a 2 GiB RAM device  [v8/BUILD.gn]
 +defines+=enable_hevc_parser_and_hw_decoder=true \
 +         v8_enable_pointer_compression=true
++# Cross build: the esbuild JS lib resolves its backend binary by the
++# RUNNING node's platform (build arch) and would look for a missing
++# @esbuild/linux-x64; point it at /usr/bin/esbuild instead (which
++# setup-chroot.sh diverts to a version-matched build-arch binary).
++export ESBUILD_BINARY_PATH=/usr/bin/esbuild
 +# -----------------------------------------------------------------------------
  endif
  ifeq (armhf,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm\" use_v4l2_codec=true use_vaapi=false arm_use_neon=true
+@@ -214,8 +237,10 @@
+ 	# use system rollup
+ 	cp -ra /usr/share/nodejs/rollup third_party/node/node_modules/
+ 	- test -L third_party/devtools-frontend/src/node_modules/rollup3 || ln -s /usr/share/nodejs/rollup third_party/devtools-frontend/src/node_modules/rollup3
+-	# use debian's esbuild
+-	cp -ra /usr/lib/$(DEB_BUILD_MULTIARCH)/nodejs/esbuild third_party/devtools-frontend/src/node_modules/
++	# use debian's esbuild (op-a53: HOST multiarch — the esbuild
++	# build-dep resolves to the host arch under -Pcross; equal to
++	# DEB_BUILD_MULTIARCH in native builds)
++	cp -ra /usr/lib/$(DEB_HOST_MULTIARCH)/nodejs/esbuild third_party/devtools-frontend/src/node_modules/
+ 	#cp debian/esbuild/root/usr/bin/esbuild third_party/devtools-frontend/src/third_party/esbuild/esbuild
+ 	mkdir -p third_party/devtools-frontend/src/third_party/esbuild
+ 	cp /usr/bin/esbuild third_party/devtools-frontend/src/third_party/esbuild/
