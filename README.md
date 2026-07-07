@@ -124,7 +124,7 @@ The recipe patch (`patches/op-a53-debian.patch`) adds, arm64-only:
 
 | delta | rationale |
 |---|---|
-| `CFLAGS/CXXFLAGS += -mcpu=cortex-a53` | schedule for the A53's in-order, dual-issue pipeline (GN has no `arm_cpu` knob for arm64 — only 32-bit arm has one — so it goes in via the unbundle toolchain's env flags). LLVM's `cortex-a53` model is armv8-a+crc+fp+neon **without** aes/sha2, matching i.MX8MM silicon exactly — no illegal-instruction risk, and crypto stays on BoringSSL's runtime-dispatched NEON paths. |
+| `-mcpu=cortex-a53` in a `build/config/compiler` config, guarded by `current_cpu=="arm64"` | schedule for the A53's in-order, dual-issue pipeline (GN has no `arm_cpu` knob for arm64 — only 32-bit arm has one). It **must not** go in the global `CXXFLAGS` env: the Debian cross build reuses the unbundle toolchain to compile the **x86_64** rust host build-tools, and clang errors on `-mcpu=` for an x86 target. Scoping it to the arm64 `config("compiler")` block keeps host tools clean. LLVM's `cortex-a53` model is armv8-a+crc+fp+neon **without** aes/sha2, matching i.MX8MM silicon exactly — no illegal-instruction risk, and crypto stays on BoringSSL's runtime-dispatched NEON paths. |
 | `enable_hevc_parser_and_hw_decoder=true` | builds the V4L2 **stateless H.265 delegate** for the Hantro G2. This *is* the M150 Linux default (`media/media_options.gni`: `proprietary_codecs && is_linux`), pinned so a future rebase can't silently drop HEVC. |
 | `v8_enable_pointer_compression=true` | 32-bit tagged pointers inside a 4 GB heap cage — the single biggest V8 memory lever on a 2 GiB device. Also the 64-bit default, pinned for the same reason. |
 
