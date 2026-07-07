@@ -180,7 +180,14 @@ ozone/GL path").
 - Failed/interrupted builds **resume**: every stage of
   `inner-build.sh` is guarded (source unpack, build-deps, patch, dch)
   and ninja is incremental — re-running `build.sh` continues where it
-  stopped.
+  stopped. Caveat: the resume goes back through
+  `override_dh_auto_configure` (unbundle/shim regeneration), which
+  re-stamps large parts of the graph — expect ninja to re-run stamps
+  and cheap actions but reuse compiled objects. (Improvement TODO:
+  ninja-only fast path for resumes.)
+- Transient clang segfaults were observed once under full parallel
+  load on WSL2 (single TU, clean when recompiled in isolation) — the
+  resume path above is the remedy; if they recur, lower `JOBS`.
 - Rebase cost: bump `VERSION` + three sha256 pins in
   `fetch-source.sh`, re-run. The chroot and its build-deps persist.
 
