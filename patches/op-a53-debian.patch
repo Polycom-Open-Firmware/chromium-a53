@@ -5,7 +5,7 @@
  ifeq (arm64,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm64\" use_v4l2_codec=true use_vaapi=false
 +
-+# --- Polycom chromium-a53 recipe v2 (TC8: i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) --
++# --- Polycom chromium-a53 recipe v3 (TC8: i.MX8MM, 4x Cortex-A53 @ 1.8 GHz) --
 +# Tune codegen for the A53's in-order pipeline. i.MX8M-family A53s ship
 +# WITHOUT the ARMv8 crypto extensions; LLVM's cortex-a53 model enables
 +# armv8-a+crc+fp+neon only (no aes/sha2), so -mcpu=cortex-a53 is safe on
@@ -30,7 +30,20 @@
  endif
  ifeq (armhf,$(DEB_HOST_ARCH))
  defines+=host_cpu=\"arm\" use_v4l2_codec=true use_vaapi=false arm_use_neon=true
-@@ -214,8 +237,10 @@
+@@ -194,7 +217,11 @@
+ 	# are new enough to build chromium but old enough to not be linked against
+ 	# Trixie's libc6 2.38
+ 	mkdir -p debian/bindgen/root
+-	ar --output debian/bindgen/root vx debian/bindgen/bindgen_0.66.1-3_$(DEB_HOST_ARCH).deb
++	# op-a53: bindgen RUNS at build time (control says bindgen:native);
++	# extract the BUILD-arch snapshot deb, not the host-arch one — the
++	# host-arch binary cannot dlopen the build-arch libclang.
++	# (DEB_BUILD_ARCH == DEB_HOST_ARCH in native builds.)
++	ar --output debian/bindgen/root vx debian/bindgen/bindgen_0.66.1-3_$(DEB_BUILD_ARCH).deb
+ 	tar -C debian/bindgen/root -Jxvf debian/bindgen/root/data.tar.xz
+ 
+ # unused for sid
+@@ -214,8 +241,10 @@
  	# use system rollup
  	cp -ra /usr/share/nodejs/rollup third_party/node/node_modules/
  	- test -L third_party/devtools-frontend/src/node_modules/rollup3 || ln -s /usr/share/nodejs/rollup third_party/devtools-frontend/src/node_modules/rollup3

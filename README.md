@@ -99,15 +99,26 @@ Debian's arm64 baseline already provides (see `debian/rules`):
 | `proprietary_codecs=true` + `ffmpeg_branding="Chrome"` | H.264/AAC/… demux + software fallback. |
 | system clang-19 / rustc-web 1.85 / lld / system libs | bookworm toolchain, security-supported. |
 
-One cross-build environment fix rides along: `debian/control`'s
-unqualified `esbuild` build-dep resolves to the *host* arch (arm64)
-under `-Pcross`, but esbuild must *run* during the build and is not
-routed through `HOST_EXEC_WRAPPER`. The recipe patches the rules to take
-the node module from `DEB_HOST_MULTIARCH` (equal to build multiarch in
-native builds, so upstreamable) and pins
-`ESBUILD_BINARY_PATH=/usr/bin/esbuild`, while `setup-chroot.sh`
-dpkg-diverts `/usr/bin/esbuild` to a sha256-pinned, version-matched
-amd64 binary so bundling runs natively.
+Two cross-build environment fixes ride along (both are "tool must RUN at
+build time but resolved to the host arch" bugs in the bookworm packaging
+that only bite under `-Pcross`; both reduce to the native behavior in a
+native build, so both are upstreamable):
+
+- **esbuild**: `debian/control`'s unqualified `esbuild` build-dep
+  resolves to arm64, and it is not routed through `HOST_EXEC_WRAPPER`.
+  The recipe patches the rules to take the node module from
+  `DEB_HOST_MULTIARCH` and pins `ESBUILD_BINARY_PATH=/usr/bin/esbuild`,
+  while `setup-chroot.sh` dpkg-diverts `/usr/bin/esbuild` to a
+  sha256-pinned, version-matched amd64 binary so bundling runs natively.
+- **bindgen**: bookworm's rules vendor a snapshot bindgen deb and
+  extract the `DEB_HOST_ARCH` copy; the arm64 binary can't dlopen the
+  amd64 `libclang-19.so.1` (control itself says `bindgen:native`). The
+  recipe extracts the `DEB_BUILD_ARCH` copy instead.
+
+The build environment additionally benefits from qemu binfmt for the
+few host-arch tools Debian doesn't wrap (`rustfmt-web:arm64`, V8
+`mksnapshot` etc. go through the wrapper, but check any new tool on a
+version bump).
 
 The recipe patch (`patches/op-a53-debian.patch`) adds, arm64-only:
 
