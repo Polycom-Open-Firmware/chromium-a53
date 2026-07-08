@@ -1,8 +1,10 @@
 # chromium-a53
 
 Recipe (not a fork) for building a hardware-accelerated Chromium for the
-**Polycom TC8** panel: Debian's `chromium` source package, cross-built
-amd64→arm64, tuned for Cortex-A53 and the TC8's etnaviv GPU + Hantro VPU.
+**Polycom panels** — the TC8 and the Trio C60 share the same i.MX8MM SoC,
+so one arm64 binary serves both: Debian's `chromium` source package,
+cross-built amd64→arm64, tuned for Cortex-A53 and the boards' etnaviv GPU
++ Hantro VPU.
 Milestone **M5** of `polycom_dev/PROFILES-PLAN.md`; the runtime side ships
 as the `op-app-chromium` deb via the org apt repo.
 
@@ -14,8 +16,8 @@ as the `op-app-chromium` deb via the org apt repo.
 | RAM | 2 GiB |
 | GPU | Vivante GC NanoUltra, mainline **etnaviv** + Mesa (GLES2-class) |
 | VPU | **Hantro** G1 (H.264/VP8) + G2 (HEVC/VP9), mainline **V4L2 stateless** (request API) decoders |
-| Display | 800×1280 portrait panel, Wayland compositor **cage** |
-| OS | Debian 12 bookworm arm64 (sealed rootfs, see tc8-firmware-build) |
+| Display | TC8: 800×1280 portrait panel; C60: 720×1280 round-corner panel — both under the Wayland compositor **cage** |
+| OS | Debian 12 bookworm arm64 (sealed rootfs, see poly-firmware-build) |
 
 ## Source lineage: why Debian bookworm-security
 
