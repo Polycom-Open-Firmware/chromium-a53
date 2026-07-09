@@ -1,0 +1,49 @@
+# poly-app-chromium — hardware-acceleration defaults for the Polycom TC8
+# (NXP i.MX8MM: 4x Cortex-A53, etnaviv/Mesa GLES2 GPU, Hantro VPU via
+# mainline V4L2 stateless decoders, 800x1280 panel, cage compositor).
+#
+# Sourced by /usr/bin/chromium (Debian launcher). Flag rationale lives in
+# https://github.com/Polycom-Open-Firmware/chromium-a53 README.
+
+# Native Wayland: the TC8 kiosk runs under cage (wlroots, xdg-shell).
+CHROMIUM_FLAGS="$CHROMIUM_FLAGS --ozone-platform=wayland"
+
+# V4L2 hardware video decode (Hantro G1: H.264/VP8; G2: HEVC/VP9).
+# "AcceleratedVideoDecoder" is the feature string of
+# media::kAcceleratedVideoDecodeLinux, which is DISABLED by default in
+# non-VAAPI builds (media/base/media_switches.cc, M150). Our build has
+# use_v4l2_codec=true + use_vaapi=false, so this single feature turns the
+# whole pipeline on. Its companions AcceleratedVideoDecodeLinuxGL and
+# AcceleratedVideoDecodeLinuxZeroCopyGL are already default-enabled.
+# The stateless-vs-stateful backend needs no flag: Chromium probes the
+# driver (Hantro exposes *_SLICE/_FRAME formats => stateless
+# V4L2VideoDecoder is selected automatically), and on non-ChromeOS Linux
+# it scans plain /dev/video* nodes.
+#
+# NOTE: --enable-features is last-one-wins. If another chromium.d snippet
+# or the kiosk unit adds --enable-features, merge the lists instead.
+CHROMIUM_FLAGS="$CHROMIUM_FLAGS --enable-features=AcceleratedVideoDecoder"
+
+# etnaviv is not in Chromium's allowlists; without this the GPU process
+# may fall back to software on an unrecognized GL vendor string.
+CHROMIUM_FLAGS="$CHROMIUM_FLAGS --ignore-gpu-blocklist"
+
+# GPU rasterization on etnaviv (Debian's default-flags also sets this;
+# repeated flags are harmless).
+CHROMIUM_FLAGS="$CHROMIUM_FLAGS --enable-gpu-rasterization"
+
+# KNOWN RISK (bench-verify): the Linux GPU-process sandbox may deny
+# opening /dev/videoN (V4L2 nodes are not in the desktop sandbox broker
+# allowlist the way VAAPI render nodes are). If chrome://media-internals
+# shows the decoder failing to open the device, test with
+#   --disable-gpu-sandbox
+# and if that fixes it, prefer a small broker-allowlist patch in the
+# next recipe rev over shipping the sandbox off.
+
+# GL/ANGLE backend: deliberately left on auto-selection for the first
+# bench evaluation. If chrome://gpu shows SwiftShader (software) on the
+# GC NanoUltra, evaluate in this order and bake the winner here:
+#   --use-angle=gles   ANGLE passthrough over native GLES (etnaviv's
+#                      native API; preferred if the ES version is enough)
+#   --use-angle=gl     ANGLE over desktop GL 2.1 compat
+# See README "GL/ANGLE decision" for the trade-offs.

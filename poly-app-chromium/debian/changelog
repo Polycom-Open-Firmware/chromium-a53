@@ -1,0 +1,13 @@
+poly-app-chromium (0.2.0) bookworm; urgency=medium
+
+  * Rename op-app-chromium -> poly-app-chromium (poly-* naming).
+  * Snippet renamed to /etc/chromium.d/60-poly-a53-hwaccel.
+
+ -- Polycom Open Firmware <noreply@github.com>  Wed, 09 Jul 2026 00:30:00 -0400
+
+poly-app-chromium (0.1.0) bookworm; urgency=medium
+
+  * Initial release: /etc/chromium.d hardware-acceleration defaults for
+    the Polycom TC8 (Wayland/cage + etnaviv + Hantro V4L2 stateless).
+
+ -- Polycom Open Firmware <noreply@github.com>  Tue, 07 Jul 2026 09:00:00 -0400

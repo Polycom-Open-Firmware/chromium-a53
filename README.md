@@ -6,7 +6,7 @@ so one arm64 binary serves both: Debian's `chromium` source package,
 cross-built amd64→arm64, tuned for Cortex-A53 and the boards' etnaviv GPU
 + Hantro VPU.
 Milestone **M5** of `polycom_dev/PROFILES-PLAN.md`; the runtime side ships
-as the `op-app-chromium` deb via the org apt repo.
+as the `poly-app-chromium` deb via the org apt repo.
 
 ## Target hardware
 
@@ -72,7 +72,7 @@ scripts/fetch-source.sh   # pinned .dsc/.orig/.debian.tar.xz, sha256-verified
 scripts/build.sh          # host-side driver: mounts, patch, detachable build
 scripts/inner-build.sh    # in-chroot: mk-build-deps -Pcross, dch +op, dpkg-buildpackage
 patches/op-a53-debian.patch  # the whole recipe delta (debian/rules)
-op-app-chromium/          # arch:all deb with the /etc/chromium.d runtime flags
+poly-app-chromium/          # arch:all deb with the /etc/chromium.d runtime flags
 ```
 
 ### Running a build
@@ -143,7 +143,7 @@ Deliberately **not** changed:
 - No AV1 hardware decode args: Hantro on i.MX8MM has no AV1; dav1d
   software decode remains for small resolutions.
 
-## Runtime flags (`op-app-chromium` → `/etc/chromium.d/60-op-a53-hwaccel`)
+## Runtime flags (`poly-app-chromium` → `/etc/chromium.d/60-poly-a53-hwaccel`)
 
 Debian's launcher sources `/etc/chromium.d/*`; the wrapper package bakes
 in (full comments in the file itself):

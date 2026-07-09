@@ -1,4 +1,4 @@
-# op-app-chromium — hardware-acceleration defaults for the Polycom TC8
+# poly-app-chromium — hardware-acceleration defaults for the Polycom TC8
 # (NXP i.MX8MM: 4x Cortex-A53, etnaviv/Mesa GLES2 GPU, Hantro VPU via
 # mainline V4L2 stateless decoders, 800x1280 panel, cage compositor).
 #

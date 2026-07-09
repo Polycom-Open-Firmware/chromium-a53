@@ -1,0 +1,17 @@
+Package: poly-app-chromium
+Version: 0.2.0
+Architecture: all
+Maintainer: Polycom Open Firmware <noreply@github.com>
+Installed-Size: 15
+Depends: chromium (>= 150)
+Section: web
+Priority: optional
+Homepage: https://github.com/Polycom-Open-Firmware/chromium-a53
+Description: Chromium kiosk app for Polycom TC8 (hardware-acceleration defaults)
+ Ships /etc/chromium.d defaults that switch Debian's chromium (built by
+ the chromium-a53 recipe) into its hardware-accelerated configuration on
+ the Polycom TC8 panel: native Wayland (cage compositor), etnaviv GPU
+ rasterization, and V4L2 stateless video decode on the Hantro VPU.
+ .
+ Pull this package in from a profile metapackage (poly-tc8-profile-*) once
+ the Chromium kiosk stack replaces cog/WPE.

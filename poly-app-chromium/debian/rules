@@ -1,0 +1,7 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_install:
+	install -D -m 0644 chromium.d/60-poly-a53-hwaccel \
+	    debian/poly-app-chromium/etc/chromium.d/60-poly-a53-hwaccel
