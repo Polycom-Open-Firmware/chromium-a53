@@ -5,8 +5,8 @@ Recipe (not a fork) for building a hardware-accelerated Chromium for the
 so one arm64 binary serves both: Debian's `chromium` source package,
 cross-built amd64→arm64, tuned for Cortex-A53 and the boards' etnaviv GPU
 + Hantro VPU.
-Milestone **M5** of `polycom_dev/PROFILES-PLAN.md`; the runtime side ships
-as the `poly-app-chromium` deb via the org apt repo.
+The runtime side ships as the `poly-app-chromium` deb via the org apt
+repo.
 
 ## Target hardware
 
@@ -16,32 +16,36 @@ as the `poly-app-chromium` deb via the org apt repo.
 | RAM | 2 GiB |
 | GPU | Vivante GC NanoUltra, mainline **etnaviv** + Mesa (GLES2-class) |
 | VPU | **Hantro** G1 (H.264/VP8) + G2 (HEVC/VP9), mainline **V4L2 stateless** (request API) decoders |
-| Display | TC8: 800×1280 portrait panel; C60: 720×1280 round-corner panel — both under the Wayland compositor **cage** |
+| Display | TC8: 800×1280 portrait panel; C60: 720×1280 round-corner panel — both under the Wayland compositor **weston** (kiosk-shell) |
 | OS | Debian 12 bookworm arm64 (sealed rootfs, see poly-firmware-build) |
 
 ## Source lineage: why Debian bookworm-security
 
-We rebuild **Debian's `chromium` source package from bookworm-security**
-rather than a depot_tools upstream checkout:
+The build rebuilds **Debian's `chromium` source package from
+bookworm-security** rather than a depot_tools upstream checkout:
 
 - **Modern and secure.** The Debian security team rebases chromium onto
-  every upstream stable. Verified 2026-07-07: bookworm-security ships
-  **150.0.7871.46-1~deb12u1** — the *same upstream milestone as sid*
-  (150.0.7871.46-1). There is nothing more modern to gain from sid, and
-  bookworm-security is guaranteed to keep building against the bookworm
-  toolchain our images use (LLVM 19 was backported to bookworm as
-  `1:19.1.7-3~deb12u1`, Rust as `rustc-web` 1.85 — exactly for this).
+  every upstream stable: the pinned **150.0.7871.46-1~deb12u1** is the
+  *same upstream milestone as sid* (150.0.7871.46-1). There is nothing
+  more modern to gain from sid, and bookworm-security keeps building
+  against the bookworm toolchain the images use (LLVM 19 was backported
+  to bookworm as `1:19.1.7-3~deb12u1`, Rust as `rustc-web` 1.85 —
+  exactly for this).
 - **Packaging + security lineage for free.** `apt upgrade` semantics,
   the `/usr/bin/chromium` launcher with its `/etc/chromium.d` flag
   mechanism, sandbox setuid handling, system-library unbundling, and a
-  version stream we can rebase by bumping three sha256 pins in
-  `scripts/fetch-source.sh`.
-- **No 100 GB source dance.** ~950 MB orig tarball instead of a
-  depot_tools/gclient checkout.
+  version stream rebased by bumping three sha256 pins in
+  `scripts/fetch-source.sh`. The pin is a moving target by design: the
+  security pool serves only the current version, and it has moved past
+  the pinned `.46` (to `.124`), so the pinned tarballs are no longer
+  downloadable from the pool — a from-scratch rebuild must bump the pin
+  and refresh the sha256s.
+- **Avoids the ~100 GB depot_tools checkout.** ~950 MB orig tarball
+  instead of a depot_tools/gclient checkout.
 - Debian's arm64 config already carries the two most important choices
   for this device: `use_v4l2_codec=true` and `use_vaapi=false`.
 
-Our builds append a `+op1` local suffix
+Builds append a `+op1` local suffix
 (`150.0.7871.46-1~deb12u1+op1`), so they sort above stock Debian and are
 identifiable in `chrome://version`.
 
@@ -77,15 +81,18 @@ poly-app-chromium/          # arch:all deb with the /etc/chromium.d runtime flag
 
 ### Running a build
 
+With `<build-dir>` a scratch directory outside the repo:
+
 ```sh
-sudo scripts/setup-chroot.sh /home/alex/chromium-build/chroot   # once
-scripts/fetch-source.sh /home/alex/chromium-build/chroot
-sudo setsid nohup scripts/build.sh > /home/alex/chromium-build/build.log 2>&1 &
+sudo scripts/setup-chroot.sh <build-dir>/chroot   # once
+scripts/fetch-source.sh <build-dir>/chroot
+sudo OUT_DIR=<build-dir>/out setsid nohup \
+    scripts/build.sh <build-dir>/chroot > <build-dir>/build.log 2>&1 &
 ```
 
 Progress: ninja emits `[N/TOTAL]` lines —
 `grep -o '\[[0-9]*/[0-9]*\]' build.log | tail -1`. Artifacts land in
-`/home/alex/chromium-build/out/`.
+`<build-dir>/out/`.
 
 ## Build configuration (GN) and why
 
@@ -139,7 +146,7 @@ Deliberately **not** changed:
   to strip X11.
 - ANGLE/Vulkan/SwiftShader stay at defaults — the GL backend decision is
   runtime-evaluable (below); pruning them buys build time but removes
-  the fallbacks we may need on the bench.
+  fallbacks that may be needed on hardware.
 - No AV1 hardware decode args: Hantro on i.MX8MM has no AV1; dav1d
   software decode remains for small resolutions.
 
@@ -150,31 +157,30 @@ in (full comments in the file itself):
 
 | flag | why |
 |---|---|
-| `--ozone-platform=wayland` | native Wayland under cage; default is still X11-first selection. |
-| `--enable-features=AcceleratedVideoDecoder` | **the** V4L2 switch. Feature string of `media::kAcceleratedVideoDecodeLinux`, which is default-OFF in non-VAAPI Linux builds (`media/base/media_switches.cc`). Everything else in the chain is already default-ON at M150: `AcceleratedVideoDecodeLinuxGL` (allows HW decode with a GL context — we have no Vulkan) and `AcceleratedVideoDecodeLinuxZeroCopyGL` (dmabuf import via `EGL_EXT_image_dma_buf_import`, which etnaviv provides). |
+| `--ozone-platform=wayland` | native Wayland under weston; default is still X11-first selection. |
+| `--enable-features=AcceleratedVideoDecoder` | **the** V4L2 switch. Feature string of `media::kAcceleratedVideoDecodeLinux`, which is default-OFF in non-VAAPI Linux builds (`media/base/media_switches.cc`). Everything else in the chain is already default-ON at M150: `AcceleratedVideoDecodeLinuxGL` (allows HW decode with a GL context — there is no Vulkan) and `AcceleratedVideoDecodeLinuxZeroCopyGL` (dmabuf import via `EGL_EXT_image_dma_buf_import`, which etnaviv provides). |
 | *(no stateless flag needed)* | Chromium probes the decoder driver: Hantro advertises `*_SLICE`/`*_FRAME` OUTPUT formats, so the stateless `V4L2VideoDecoder` is selected automatically (`IsV4L2DecoderStateful()`, `media/gpu/v4l2/v4l2_utils.cc`); non-ChromeOS Linux scans plain `/dev/video*` (`v4l2_device.cc`). |
 | `--ignore-gpu-blocklist` | Vivante/etnaviv is not on Chromium's allowlists. |
 | `--enable-gpu-rasterization` | raster on the GPU (Debian default-flags also sets it). |
 
-**GL/ANGLE decision — deferred to bench.** The file leaves ANGLE's
+**GL/ANGLE decision — resolved on hardware.** The file leaves ANGLE's
 backend auto-selection in place. On first hardware run, check
 `chrome://gpu`; if it reports SwiftShader, evaluate in order
 `--use-angle=gles` (ANGLE passthrough on native GLES — etnaviv's native
 API, preferred), then `--use-angle=gl` (desktop GL 2.1 compat path).
 Risk noted below: ANGLE's GLES backend prefers ES 3.0; GC NanoUltra is
 ES2-class, so the winning combination may be `gl`, or GPU compositing
-with the video overlay path and no GPU raster. This is exactly the M5
-bench-eval question (PROFILES-PLAN: "etnaviv + Chromium = check
-ozone/GL path").
+with the video overlay path and no GPU raster.
 
 ## Budget & timings
 
-- Builder: 12-core amd64, 30 GiB RAM + 8 GiB swap. Build runs
-  `nice -n 10` with **ninja `-j10`** (leave 2 cores for the box).
+- Builder minimums: ~12 amd64 cores, ≥ 30 GiB RAM plus swap — and
+  leave headroom. The build runs `nice -n 10` with **ninja `-j10`**
+  (a couple of cores stay free for the host).
 - Disk: chroot + build-deps ≈ 10 GB, source tree ≈ 7 GB unpacked,
   out/Release ≈ 40–80 GB. Keep ≥ 150 GB free.
-- Wall clock: the arch build is **80,320 ninja targets**; first build
-  (2026-07-07, this box) opened at ≈ 8 targets/s in the early phase →
+- Wall clock: the arch build is **80,320 ninja targets**; the early
+  phase opens at ≈ 8 targets/s on such a builder →
   expect **3–6 h** to the debs (compile skews fast early, the final lld
   links and dh_install skew slow; qemu-emulated one-shot tools add
   minutes, not hours). Link phase peaks ≈ 10 GB RSS per lld link; GN's
@@ -185,37 +191,36 @@ ozone/GL path").
   stopped. Caveat: the resume goes back through
   `override_dh_auto_configure` (unbundle/shim regeneration), which
   re-stamps large parts of the graph — expect ninja to re-run stamps
-  and cheap actions but reuse compiled objects. (Improvement TODO:
-  ninja-only fast path for resumes.)
-- Transient clang segfaults were observed once under full parallel
-  load on WSL2 (single TU, clean when recompiled in isolation) — the
-  resume path above is the remedy; if they recur, lower `JOBS`.
+  and cheap actions but reuse compiled objects.
+- If clang segfaults under memory pressure at full parallel load,
+  re-run the build (the resume path recompiles the failed TU) and
+  lower `JOBS` if it recurs.
 - Rebase cost: bump `VERSION` + three sha256 pins in
   `fetch-source.sh`, re-run. The chroot and its build-deps persist.
 
-## Open risks
+## Caveats
 
-- **HEVC on the bench**: the stateless H.265 delegate builds and Hantro
-  G2 exposes `HEVC_SLICE`, but desktop-Linux V4L2 HEVC is the
-  least-exercised combination upstream — treat as "verify on hardware",
-  H.264/VP8/VP9 are the well-trodden paths.
+- **HEVC**: the stateless H.265 delegate builds and Hantro G2 exposes
+  `HEVC_SLICE`, but desktop-Linux V4L2 HEVC is the least-exercised
+  combination upstream — verify on hardware; H.264/VP8/VP9 are the
+  well-trodden paths.
 - **ANGLE on ES2-class GPU**: see GL/ANGLE decision above; worst case is
   SwiftShader raster with HW video decode still active (decode is
   independent of raster backend, needs only EGL+dmabuf for zero-copy).
 - **GPU sandbox vs /dev/video***: the desktop-Linux GPU-process sandbox
   broker allowlists VAAPI render nodes but not necessarily V4L2 decoder
-  nodes; if decode fails with EPERM on the bench, verify with
+  nodes; if decode fails with EPERM on hardware, verify with
   `--disable-gpu-sandbox`, then carry a small sandbox broker allowlist
   patch (`sandbox/policy/linux/bpf_gpu_policy_linux.cc`) in the next
   recipe rev rather than shipping with the sandbox off.
 - **2 GiB RAM**: pointer compression is pinned, but a modern Chromium +
-  cage on 2 GiB wants a bench pass over `chrome://memory` /
+  weston on 2 GiB wants a pass on hardware over `chrome://memory` /
   `memory.pressure`; candidates if tight: `--renderer-process-limit=2`,
   `--in-process-gpu` (evaluate, don't preempt).
 - **Cross profile drift**: the `cross` profile is maintainer-supported
   but not exercised by Debian buildds; a future security rebase could
-  break it — the recipe pins exact versions, so breakage never surprises
-  us mid-release.
+  break it — the recipe pins exact versions, so breakage surfaces only
+  at a deliberate rebase, never mid-release.
 - **`dpkg-buildpackage -b` builds arch:all too** (chromium-l10n needs
   `packed_resources`); if indep-under-cross ever misbehaves, switch to
   `-B` and pull l10n from Debian (it's locale .paks, arch/ABI-neutral —
@@ -223,8 +228,8 @@ ozone/GL path").
 
 ## Publishing
 
-Not wired yet (matches org status): CI is a **manual-dispatch sketch**
-for a future self-hosted runner, uploads debs as artifacts only. When
-apt-repo publishing goes live, dispatch `Polycom-Open-Firmware/apt`
+CI is **manual-dispatch only** and uploads debs as build artifacts;
+publishing is manual, via the apt repo. When apt-repo publishing goes
+live, dispatch `Polycom-Open-Firmware/apt`
 (single writer) exactly like the `packages` repo does. **Never** attach
 an auto-build-on-push trigger to this repo — builds are hours long.
