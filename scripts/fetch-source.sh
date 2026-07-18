@@ -6,7 +6,7 @@
 #
 # Source lineage: bookworm-security. The Debian security team rebases
 # chromium onto each upstream stable, so bookworm-security carries the
-# SAME upstream version as sid (verified 2026-07-07: both 150.0.7871.46)
+# SAME upstream version as sid
 # while remaining buildable with bookworm's toolchain (llvm-19
 # 1:19.1.7-3~deb12u1, rustc-web 1.85). When bumping: update VERSION and
 # the three sha256 pins from
@@ -17,14 +17,14 @@ set -euo pipefail
 CHROOT="${1:-/home/alex/chromium-build/chroot}"
 DEST="$CHROOT/build"
 
-VERSION="150.0.7871.46"
+VERSION="150.0.7871.124"
 DEBREV="1~deb12u1"
 POOL="https://deb.debian.org/debian-security/pool/updates/main/c/chromium"
 
 declare -A SHA256=(
-    ["chromium_${VERSION}-${DEBREV}.dsc"]="7c05f02b15901afe7d92f0a0706dc7db334226322b4882152608e3b2a4da81a8"
-    ["chromium_${VERSION}.orig.tar.xz"]="a3fcaf6dea387ae603ff4228017a13e1ddb4de2ae074bd61a75520ef4c7d7a0a"
-    ["chromium_${VERSION}-${DEBREV}.debian.tar.xz"]="3014d36dd55bc35a05064ba6e8db70fc19dffcac3f548d9a857a05af8df6a510"
+    ["chromium_${VERSION}-${DEBREV}.dsc"]="409ba2c744b1f61adc80b8f3ec9b58e42fbf51d0dc90f306369309101870e981"
+    ["chromium_${VERSION}.orig.tar.xz"]="50f06f405618eda4a1d8b7399ad45985cab4eabf2ee9b5adeb80c0397ceb92c1"
+    ["chromium_${VERSION}-${DEBREV}.debian.tar.xz"]="00fe596b8eec531ea805d516f144c0159cd1c6717e5c216f585dc732f9162a8f"
 )
 
 mkdir -p "$DEST"

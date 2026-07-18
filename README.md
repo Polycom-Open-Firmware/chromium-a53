@@ -25,8 +25,8 @@ The build rebuilds **Debian's `chromium` source package from
 bookworm-security** rather than a depot_tools upstream checkout:
 
 - **Modern and secure.** The Debian security team rebases chromium onto
-  every upstream stable: the pinned **150.0.7871.46-1~deb12u1** is the
-  *same upstream milestone as sid* (150.0.7871.46-1). There is nothing
+  every upstream stable: the pinned **150.0.7871.124-1~deb12u1** is the
+  *same upstream milestone as sid* (150.0.7871.124-1). There is nothing
   more modern to gain from sid, and bookworm-security keeps building
   against the bookworm toolchain the images use (LLVM 19 was backported
   to bookworm as `1:19.1.7-3~deb12u1`, Rust as `rustc-web` 1.85 —
@@ -36,17 +36,17 @@ bookworm-security** rather than a depot_tools upstream checkout:
   mechanism, sandbox setuid handling, system-library unbundling, and a
   version stream rebased by bumping three sha256 pins in
   `scripts/fetch-source.sh`. The pin is a moving target by design: the
-  security pool serves only the current version, and it has moved past
-  the pinned `.46` (to `.124`), so the pinned tarballs are no longer
-  downloadable from the pool — a from-scratch rebuild must bump the pin
-  and refresh the sha256s.
+  security pool serves only the current version, so when it advances the
+  pinned tarballs stop being downloadable and the pin plus sha256s must
+  be bumped before a from-scratch rebuild (the pins come from the pool's
+  `Sources.xz` — no download needed).
 - **Avoids the ~100 GB depot_tools checkout.** ~950 MB orig tarball
   instead of a depot_tools/gclient checkout.
 - Debian's arm64 config already carries the two most important choices
   for this device: `use_v4l2_codec=true` and `use_vaapi=false`.
 
 Builds append a `+op1` local suffix
-(`150.0.7871.46-1~deb12u1+op1`), so they sort above stock Debian and are
+(`150.0.7871.124-1~deb12u1+op1`), so they sort above stock Debian and are
 identifiable in `chrome://version`.
 
 ## Cross-build approach
